@@ -1,57 +1,75 @@
 import { useState } from 'react';
-import axios from 'axios'; 
+import axios from 'axios';
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleFileChange = (e) => {
     setSelectedFile(e.target.files[0]);
-    console.log("File selected:", e.target.files[0]);
+     setError(null); 
+     console.log("File selected:", e.target.files[0]);
   };
 
   const handleUpload = async () => {
-  // Step 1: Check if file is selected
-  if (!selectedFile) {
-    alert("Please select a file first!");
-    return;
-  }
-
-  // Step 2: Create FormData (special format for sending files)
-  const formData = new FormData();
-  formData.append('file', selectedFile);
-
-  // Step 3: Send to backend
-  try {
-    console.log("Sending file to backend...");
+    setUploadProgress(0);
+    setIsLoading(true);
+     setError(null); 
     
-    const response = await axios.post(
-      'http://localhost:5000/api/predict',  // Backend URL
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+    if (!selectedFile) {
+      setError("Please select a file first!"); 
+      setIsLoading(false);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      console.log("Sending file to backend...");
+      
+      const response = await axios.post(
+        'http://localhost:5000/api/predict',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          },
+          onUploadProgress: (progressEvent) => {
+            const percent = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            );
+            setUploadProgress(percent);
+            console.log("Upload progress:", percent + "%");
+          }
         }
-      }
-    );
+      );
 
-    // Step 4: Show the result
-    console.log("Success! Backend returned:", response.data);
-    alert("Result: " + JSON.stringify(response.data));
+      console.log("Success! Backend returned:", response.data);
+      alert("Result: " + JSON.stringify(response.data));
+      
+      setUploadProgress(100);
+      setTimeout(() => setUploadProgress(0), 2000);
 
-  } catch (error) {
-    // Step 5: Handle errors
-    console.error("Error uploading file:", error);
-    
-    if (error.response) {
-      // Backend responded with error
-      alert("Backend error: " + error.response.data.message);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      setUploadProgress(0);
+      
+      if (error.response) {
+      // Backend responded with an error (4xx, 5xx)
+      const message = error.response.data?.message || error.response.data?.error || 'Server error occurred';
+      setError(`Backend Error: ${message}`);
     } else if (error.request) {
-      // Backend didn't respond
-      alert("Cannot reach backend. Is it running on localhost:5000?");
+      // Request was made but no response received
+      setError('Cannot reach the server. Is the backend running on localhost:5000?');
     } else {
       // Something else went wrong
-      alert("Error: " + error.message);
+      setError(`Error: ${error.message}`);
     }
+  } finally {
+    setIsLoading(false);
   }
 };
 
@@ -79,10 +97,60 @@ function App() {
           
           <button 
             onClick={handleUpload}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors"
+            disabled={isLoading}
+            className={`px-6 py-2 rounded-lg transition-colors text-white font-medium ${
+              isLoading 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-blue-500 hover:bg-blue-600'
+            }`}
           >
-            Analyze File
+            {isLoading ? 'Analyzing...' : 'Analyze File'}
           </button>
+
+          {/* Progress bar */}
+          {uploadProgress > 0 && uploadProgress < 100 && (
+            <div className="mt-4">
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-blue-500 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <p className="text-sm text-gray-600 mt-2 text-center">
+                Uploading: {uploadProgress}%
+              </p>
+            </div>
+          )}
+
+          {/* Loading spinner */}
+          {isLoading && (
+            <div className="flex flex-col items-center mt-6">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+              <p className="text-gray-600 mt-3 font-medium">Analyzing your file...</p>
+            </div>
+          )}
+          {error && (
+  <div className="mt-4 p-4 bg-red-50 border-l-4 border-red-500 rounded">
+    <div className="flex items-start">
+      <div className="flex-shrink-0">
+        <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <div className="ml-3">
+        <h3 className="text-sm font-medium text-red-800">Error</h3>
+        <p className="text-sm text-red-700 mt-1">{error}</p>
+      </div>
+      <button 
+        onClick={() => setError(null)}
+        className="ml-auto flex-shrink-0 text-red-400 hover:text-red-600"
+      >
+        <span className="text-xl">&times;</span>
+      </button>
+    </div>
+  </div>
+)}
+
         </div>
 
         {/* Results Section */}
