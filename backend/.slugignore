@@ -1,0 +1,9 @@
+*.pyc
+__pycache__/
+test_*.py
+*.mp4
+*.avi
+logs/
+temp/
+uploads/
+.env
